@@ -1,0 +1,126 @@
+
+Google Stock Price Prediction RNN
+
+LSTM that predicts upwards and downwards trend of google stockprice Many layers with dropout regularisation to prevent overfitting
+
+Part 1 - Data Preprocessing
+
+# Importing the libraries
+import numpy as np #allow to make arrays
+import matplotlib.pyplot as plt #visualize results on charts 
+import pandas as pd #import dataset and manage easily
+[ ]
+# Importing the training set - only importing training set, test set later  on 
+#rnn has no idea of the test set's data, then after training is done, test set will eb important
+dataset_train = pd.read_csv('GOOGL_Stock_Price_Train.csv')
+​
+#need to make into numpy arrays because only nump arrays can be input values in keras
+training_set = dataset_train.iloc[:, 1:2].values 
+​
+#getting everything from the columns (.values makes the numpy array)
+[ ]
+# Feature Scaling
+#2 ways: take obs- min ofstock prices/max of stock prices- min of stock prices
+#using normalization instead of standardisation- look at meaning
+from sklearn.preprocessing import MinMaxScaler
+sc = MinMaxScaler(feature_range = (0, 1))
+training_set_scaled = sc.fit_transform(training_set) #fit (gets min and max on data to apply formula) tranform(compute scale stock prices to each formula)
+[ ]
+# Creating a data structure with 60 timesteps and 1 output
+#60 times steps- at each time t and look at 60 previous time steps, then make new prediction 
+# 1 time step leads to overfitting, 20 is still too low
+#60 previous financial days- in 3 months 
+X_train = []
+y_train = []
+for i in range(60, 2168): # upper bound is number of values 
+  X_train.append(training_set_scaled[i-60:i, 0]) #takes 60 previous stock prices from 60 past stock prices
+  y_train.append(training_set_scaled[i, 0]) #contains stock price learned to predict 
+X_train, y_train = np.array(X_train), np.array(y_train) # make into numpy arrays 
+#Need to add dimension to because not only prescition with one stock price but other indicators (like other columns in dataset  or other stocks that may affect this one )
+[ ]
+# Reshaping- add dimension in numpy array 
+X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1)) #adds dimension in numpy array
+#currently only have one indicator, with new dimension will have more indicators, be compatible for "input shape" of RNN
+# format according to keras documentation 
+​
+Part 2 - Building the RNN stacked lstm with dropout regularization to prevent overfitting
+
+[ ]
+# Importing the Keras libraries and packages
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Dropout
+[ ]
+# Initialising the RNN
+regressor = Sequential() #reps sequence of layers, predicting continous values (so it is a regression)
+[ ]
+# Adding the first LSTM layer and some Dropout regularisation
+#dropout to prevent overfitting
+regressor.add(LSTM(units = 50, return_sequences = True, input_shape = (X_train.shape[1], 1)))#regressor- object of sequential class, can add layers to networ.
+#use lstm class and create object of lstm class- 3 args
+#num of units, return sequences- set to true because is stacked lstms, and shape
+#units- neurons in first layer. 50 in layers for high dimensionality, can capture upward and downward
+regressor.add(Dropout(0.2))
+# takes arg of dropout late- num of neurons want to drop. dropping 20% of neurons to be ignored during trianingn for each iteratin. 10 neurons will be dropped out
+[ ]
+# Adding a second LSTM layer and some Dropout regularisation
+# total of 4 layers, simply need to copy, only change is input shape so dont need to specify that, automatically recognised through input shape
+​
+regressor.add(LSTM(units = 50, return_sequences = True)) 
+​
+regressor.add(Dropout(0.2))
+[ ]
+# Adding a third LSTM layer and some Dropout regularisation
+# same as second layer 
+regressor.add(LSTM(units = 50, return_sequences = True))
+regressor.add(Dropout(0.2))
+[ ]
+# Adding a fourth LSTM layer and some Dropout regularisation
+# almost same, but return sequence is false because it is the last lstm layer (so it is removed becasue default is false)
+regressor.add(LSTM(units = 50))
+regressor.add(Dropout(0.2))
+[ ]
+# Adding the output layer
+#add fully connected layer through dense class- dimesion/units/neurons is 1
+regressor.add(Dense(units = 1))
+[ ]
+# Compiling the RNN
+#regressior because predicting continuous value, 
+regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
+[ ]
+# Fitting the RNN to the Training set
+#have not made connection to training set, training will take place
+regressor.fit(X_train, y_train, epochs = 200, batch_size = 32) # CHANGE BACK TO 100 IF NOT WORK
+#100 gives good convergence
+# trained on certain batch sizes, 
+Part 3 - Making the predictions and visualising the results
+
+[ ]
+# Getting the real stock price of 2018
+dataset_test = pd.read_csv('GOOGL_Stock_Price_Test.csv')
+real_stock_price = dataset_test.iloc[:, 1:2].values
+[ ]
+# Getting the predicted stock price of 2018
+dataset_total = pd.concat((dataset_train['Open'], dataset_test['Open']), axis = 0)
+inputs = dataset_total[len(dataset_total) - len(dataset_test) - 60:].values #getting input of each previous financial days
+inputs = inputs.reshape(-1,1)
+inputs = sc.transform(inputs)
+X_test = []
+for i in range(60, 227):
+    X_test.append(inputs[i-60:i, 0])
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+predicted_stock_price = regressor.predict(X_test)
+predicted_stock_price = sc.inverse_transform(predicted_stock_price)
+​
+[ ]
+# Visualising the results
+plt.plot(real_stock_price, color = 'red', label = 'Real Google Stock Price')
+plt.plot(predicted_stock_price, color = 'blue', label = 'Predicted Google Stock Price')
+plt.title('Google Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('Google Stock Price')
+plt.legend()
+plt.show()
+Laying out notebook...
